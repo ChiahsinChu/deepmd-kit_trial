@@ -13,7 +13,7 @@
 #include "fix.h"
 #include "fix_dplr.h"
 #include "pppm_dplr.h"
-#include "compute_dipole.h"
+#include "compute_dpdip.h"
 
 
 using namespace LAMMPS_NS;
@@ -40,14 +40,14 @@ void ComputeDPDip::init()
 }
 
 void
-FixDPLR::get_valid_pairs(vector<pair<int,int> >& pairs)
+ComputeDPDip::get_valid_pairs(std::vector<pair<int,int> >& pairs)
 {
   pairs.clear();
   
   int nlocal = atom->nlocal;
   int nghost = atom->nghost;
   int nall = nlocal + nghost;
-  vector<int > dtype (nall);
+  std::vector<int > dtype (nall);
   // get type
   {
     int *type = atom->type;
@@ -179,7 +179,7 @@ void ComputeDPDip::compute_vector()
   std::vector<double > dip (3, 0.0);
   for (int dd = 0; dd < 3; ++dd)
   {
-    dip[dd] = (-2) * m_o[dd] + m_h[dd] + (-2) * m_wfc[dd]
+    dip[dd] = (-2) * m_o[dd] + m_h[dd] + (-2) * m_wfc[dd];
   }  
 
   MPI_Allreduce(&dip, vector, 3, MPI_DOUBLE, MPI_SUM, world);

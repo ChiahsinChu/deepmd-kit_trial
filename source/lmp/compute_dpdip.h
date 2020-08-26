@@ -21,7 +21,7 @@ ComputeStyle(dpdip,ComputeDPDip)
 #endif
 
 namespace LAMMPS_NS {
-  class omputeDPDip : public Compute {
+  class ComputeDPDip : public Compute {
 public:
    ComputeDPDip(class LAMMPS *, int, char **);
    virtual ~ComputeDPDip();
@@ -34,11 +34,11 @@ private:
     PairNNP * pair_nnp;
     DeepTensor dpt;
     DataModifier dtm;
-    vector<int > sel_type;
-    vector<int > dpl_type;
-    vector<int > bond_type;
+    std::vector<int > sel_type;
+    std::vector<int > dpl_type;
+    std::vector<int > bond_type;
     map<int,int > type_asso;
-    void get_valid_pairs(vector<pair<int,int> >& pairs);
+    void get_valid_pairs(std::vector<pair<int,int> >& pairs);
 };
 
 }
