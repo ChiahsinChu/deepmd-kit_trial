@@ -221,6 +221,7 @@ PairNNP::PairNNP(LAMMPS *lmp)
   single_model = false;
   multi_models_mod_devi = false;
   multi_models_no_mod_devi = false;
+  model_with_dip = false;
   // set comm size needed by this Pair
   comm_reverse = 1;
 
@@ -320,6 +321,9 @@ void PairNNP::compute(int eflag, int vflag)
       if (multi_models_no_mod_devi && (out_freq > 0 && update->ntimestep % out_freq == 0)) {
           ago = 0;
       }
+      else if (model_with_dip) {
+        ago = 0;
+      }
       else if (multi_models_mod_devi && (out_freq == 0 || update->ntimestep % out_freq != 0)) {
         ago = 0;
       }
@@ -328,6 +332,7 @@ void PairNNP::compute(int eflag, int vflag)
   single_model = (numb_models == 1);
   multi_models_no_mod_devi = (numb_models > 1 && (out_freq == 0 || update->ntimestep % out_freq != 0));
   multi_models_mod_devi = (numb_models > 1 && (out_freq > 0 && update->ntimestep % out_freq == 0));
+  model_with_dip = (numb_models > 1 && out_dip == 1);
   if (do_ghost) {
     LammpsNeighborList lmp_list (list->inum, list->ilist, list->numneigh, list->firstneigh);
     if (single_model || multi_models_no_mod_devi) {
@@ -385,6 +390,101 @@ void PairNNP::compute(int eflag, int vflag)
 	  }
 	}
       }
+    }
+    else if (model_with_dip) {
+      if ( ! (eflag_atom || vflag_atom) ) {      
+#ifdef HIGH_PREC
+  nnp_inter.compute (dener, dforce, dvirial, dcoord, dtype, dbox, nghost, lmp_list, ago, fparam, daparam);
+#else
+  vector<float> dcoord_(dcoord.size());
+  vector<float> dbox_(dbox.size());
+  for (unsigned dd = 0; dd < dcoord.size(); ++dd) dcoord_[dd] = dcoord[dd];
+  for (unsigned dd = 0; dd < dbox.size(); ++dd) dbox_[dd] = dbox[dd];
+  vector<float> dforce_(dforce.size(), 0);
+  vector<float> dvirial_(dvirial.size(), 0);
+  double dener_ = 0;
+  nnp_inter.compute (dener_, dforce_, dvirial_, dcoord_, dtype, dbox_, nghost, lmp_list, ago, fparam, daparam);
+  for (unsigned dd = 0; dd < dforce.size(); ++dd) dforce[dd] = dforce_[dd]; 
+  for (unsigned dd = 0; dd < dvirial.size(); ++dd) dvirial[dd] = dvirial_[dd];  
+  dener = dener_;
+#endif
+      }
+      // do atomic energy and virial
+      else {
+  vector<double > deatom (nall * 1, 0);
+  vector<double > dvatom (nall * 9, 0);
+#ifdef HIGH_PREC
+  nnp_inter.compute (dener, dforce, dvirial, deatom, dvatom, dcoord, dtype, dbox, nghost, lmp_list, ago, fparam, daparam);
+#else 
+  vector<float> dcoord_(dcoord.size());
+  vector<float> dbox_(dbox.size());
+  for (unsigned dd = 0; dd < dcoord.size(); ++dd) dcoord_[dd] = dcoord[dd];
+  for (unsigned dd = 0; dd < dbox.size(); ++dd) dbox_[dd] = dbox[dd];
+  vector<float> dforce_(dforce.size(), 0);
+  vector<float> dvirial_(dvirial.size(), 0);
+  vector<float> deatom_(dforce.size(), 0);
+  vector<float> dvatom_(dforce.size(), 0);
+  double dener_ = 0;
+  nnp_inter.compute (dener_, dforce_, dvirial_, deatom_, dvatom_, dcoord_, dtype, dbox_, nghost, lmp_list, ago, fparam, daparam);
+  for (unsigned dd = 0; dd < dforce.size(); ++dd) dforce[dd] = dforce_[dd]; 
+  for (unsigned dd = 0; dd < dvirial.size(); ++dd) dvirial[dd] = dvirial_[dd];  
+  for (unsigned dd = 0; dd < deatom.size(); ++dd) deatom[dd] = deatom_[dd]; 
+  for (unsigned dd = 0; dd < dvatom.size(); ++dd) dvatom[dd] = dvatom_[dd]; 
+  dener = dener_;
+#endif  
+  if (eflag_atom) {
+    for (int ii = 0; ii < nlocal; ++ii) eatom[ii] += deatom[ii];
+  }
+  if (vflag_atom) {
+    for (int ii = 0; ii < nall; ++ii){
+      vatom[ii][0] += 1.0 * dvatom[9*ii+0];
+      vatom[ii][1] += 1.0 * dvatom[9*ii+4];
+      vatom[ii][2] += 1.0 * dvatom[9*ii+8];
+      vatom[ii][3] += 1.0 * dvatom[9*ii+3];
+      vatom[ii][4] += 1.0 * dvatom[9*ii+6];
+      vatom[ii][5] += 1.0 * dvatom[9*ii+7];
+    }
+  }
+      }
+
+    // read dipole model
+      vector<double > ddipole (nall * 1, 0);
+#ifdef HIGH_PREC
+  dip_inter.compute (ddipole, dcoord, dtype, dbox, nghost, lmp_list, ago, fparam, daparam);
+#else
+  vector<float> dcoord_(dcoord.size());
+  vector<float> dbox_(dbox.size());
+  for (unsigned dd = 0; dd < dcoord.size(); ++dd) dcoord_[dd] = dcoord[dd];
+  for (unsigned dd = 0; dd < dbox.size(); ++dd) dbox_[dd] = dbox[dd];
+  vector<float > ddipole_ (nall * 1, 0);
+  nnp_inter.compute (ddipole_, dcoord_, dtype, dbox_, nghost, lmp_list, ago, fparam, daparam);
+  for (unsigned dd = 0; dd < ddipole.size(); ++dd) ddipole[dd] = ddipole_[dd]; 
+#endif
+    // calculate dipole from wannier center & atom coordinates
+  vector<double> dipole(3, 0.0);
+  for (int ii = 0; ii < nlocal; ++ii){
+    for (int dd = 0; dd < 3; ++dd){
+      if (dtype[ii] == 0){
+        dipole[dd] = (-2)*coord[3*ii+dd];
+      }
+      else if (dtype[ii] == 1){
+        dipole[dd] = coord[3*ii+dd];
+      }
+    }
+  }
+  for (int ii = 0; ii < nlocal/3; ++ii){
+    for (int dd = 0; dd < 3; ++dd){
+      dipole[dd] = (-2)*ddipole[ii*3+dd];
+    }
+  }
+
+    // write dipole data to dipole.out
+    fp_2 << setw(12) << update->ntimestep 
+       << " " << setw(18) << dipole[0] 
+       << " " << setw(18) << dipole[1]
+       << " " << setw(18) << dipole[2];
+    fp << endl;
+
     }
     else if (multi_models_mod_devi) {
       vector<double > deatom (nall * 1, 0);
@@ -629,6 +729,8 @@ is_key (const string& input)
   keys.push_back("ttm");
   keys.push_back("atomic");
   keys.push_back("relative");
+  keys.push_back("out_dip");
+  keys.push_back("dip_file");
 
   for (int ii = 0; ii < keys.size(); ++ii){
     if (input == keys[ii]) {
@@ -655,25 +757,6 @@ void PairNNP::settings(int narg, char **arg)
     models.push_back(arg[ii]);
   }
   numb_models = models.size();
-  if (numb_models == 1) {
-    nnp_inter.init (arg[0], get_node_rank());
-    cutoff = nnp_inter.cutoff ();
-    numb_types = nnp_inter.numb_types();
-    dim_fparam = nnp_inter.dim_fparam();
-    dim_aparam = nnp_inter.dim_aparam();
-  }
-  else {
-    nnp_inter.init (arg[0], get_node_rank());
-    nnp_inter_model_devi.init(models, get_node_rank());
-    cutoff = nnp_inter_model_devi.cutoff();
-    numb_types = nnp_inter_model_devi.numb_types();
-    dim_fparam = nnp_inter_model_devi.dim_fparam();
-    dim_aparam = nnp_inter_model_devi.dim_aparam();
-    assert(cutoff == nnp_inter.cutoff());
-    assert(numb_types == nnp_inter.numb_types());
-    assert(dim_fparam == nnp_inter.dim_fparam());
-    assert(dim_aparam == nnp_inter.dim_aparam());
-  }
 
   out_freq = 100;
   out_file = "model_devi.out";
@@ -682,6 +765,8 @@ void PairNNP::settings(int narg, char **arg)
   eps = 0.;
   fparam.clear();
   aparam.clear();
+  out_dip = 0;
+  dip_file = "dipole.out";
   while (iarg < narg) {
     if (! is_key(arg[iarg])) {
       error->all(FLERR,"Illegal pair_style command\nwrong number of parameters\n");
@@ -745,10 +830,51 @@ void PairNNP::settings(int narg, char **arg)
 #endif
       iarg += 2;
     }
+    else if (string(arg[iarg]) == string("out_dip")) {
+      out_dip = 1;
+      iarg += 1;
+    }
+    else if (string(arg[iarg]) == string("dip_file")) {
+      if (iarg+1 >= narg) error->all(FLERR,"Illegal dip_file, not provided");
+      dip_file = string(arg[iarg+1]); 
+      iarg += 2;
+    }
   }
   if (out_freq < 0) error->all(FLERR,"Illegal out_freq, should be >= 0");
   if (do_ttm && aparam.size() > 0) {
     error->all(FLERR,"aparam and ttm should NOT be set simultaneously");
+  }
+
+  if (numb_models == 1) {
+    nnp_inter.init (arg[0], get_node_rank());
+    cutoff = nnp_inter.cutoff ();
+    numb_types = nnp_inter.numb_types();
+    dim_fparam = nnp_inter.dim_fparam();
+    dim_aparam = nnp_inter.dim_aparam();
+  }
+  else if (out_dip == 1) {
+    nnp_inter.init (arg[0], get_node_rank());
+    cutoff = nnp_inter.cutoff ();
+    numb_types = nnp_inter.numb_types();
+    dim_fparam = nnp_inter.dim_fparam();
+    dim_aparam = nnp_inter.dim_aparam();
+    dip_inter.init (arg[1], get_node_rank());
+    cutoff_ = dip_inter.cutoff ();
+    numb_types_ = dip_inter.numb_types();
+    dim_fparam_ = dip_inter.dim_fparam();
+    dim_aparam_ = dip_inter.dim_aparam();
+  }
+  else {
+    nnp_inter.init (arg[0], get_node_rank());
+    nnp_inter_model_devi.init(models, get_node_rank());
+    cutoff = nnp_inter_model_devi.cutoff();
+    numb_types = nnp_inter_model_devi.numb_types();
+    dim_fparam = nnp_inter_model_devi.dim_fparam();
+    dim_aparam = nnp_inter_model_devi.dim_aparam();
+    assert(cutoff == nnp_inter.cutoff());
+    assert(numb_types == nnp_inter.numb_types());
+    assert(dim_fparam == nnp_inter.dim_fparam());
+    assert(dim_aparam == nnp_inter.dim_aparam());
   }
   
   if (comm->me == 0){
@@ -764,6 +890,16 @@ void PairNNP::settings(int narg, char **arg)
 	 << setw(18+1) << "min_devi_f"
 	 << setw(18+1) << "avg_devi_f"
 	 << endl;
+    }
+    if (numb_models > 1 && out_dip == 1){
+      fp_2.open (dip_file);
+      fp_2 << scientific;
+      fp_2 << "#"
+   << setw(12-1) << "step" 
+   << setw(18+1) << "x_dipole"
+   << setw(18+1) << "y_dipole"
+   << setw(18+1) << "z_dipole"
+   << endl;
     }
     string pre = "  ";
     cout << pre << ">>> Info of model(s):" << endl
