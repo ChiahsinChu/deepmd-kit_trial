@@ -70,28 +70,41 @@ class PairNNP : public Pair {
 
 private:  
   NNPInter nnp_inter;
+  NNPInter dip_inter;
   NNPInterModelDevi nnp_inter_model_devi;
   unsigned numb_models;
   double cutoff;
+  double cutoff_;
   int numb_types;
+  int numb_types_;
   vector<vector<double > > all_force;
   ofstream fp;
+  ofstream fp_2;
   int out_freq;
   string out_file;
   int dim_fparam;
+  int dim_fparam_;
   int dim_aparam;
+  int dim_aparam_;
   int out_each;
   int out_rel;
+  int out_dip;
+  string dip_file;
   bool single_model;
   bool multi_models_mod_devi;
   bool multi_models_no_mod_devi;
+  bool model_with_dip;
 #ifdef HIGH_PREC
   vector<double > fparam;
   vector<double > aparam;
+  vector<double > fparam_;
+  vector<double > aparam_;
   double eps;
 #else
   vector<float > fparam;
   vector<float > aparam;
+  vector<float > fparam_;
+  vector<float > aparam_;
   float eps;
 #endif
   void make_ttm_aparam(
