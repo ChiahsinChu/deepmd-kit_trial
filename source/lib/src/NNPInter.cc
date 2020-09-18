@@ -251,6 +251,62 @@ static void run_model (ENERGYTYPE   &	dener,
 #endif
 }
 
+//deep dipole model
+static void run_model (vector<VALUETYPE>            & ddipole,
+     Session                      * session, 
+     const std::vector<std::pair<string, Tensor>> & input_tensors,
+     const NNPAtomMap<VALUETYPE>  &   nnpmap, 
+     const int              &   nghost = 0)
+{
+    unsigned nloc = nnpmap.get_type().size();
+    unsigned nall = nloc + nghost;
+    if (nloc == 0) {
+        // ddipole of size nall
+        ddipole.resize(nall);
+        fill(ddipole.begin(), ddipole.end(), 0.0);
+        return;
+    }
+#ifdef USE_CUDA_TOOLKIT
+    std::vector<Tensor> output_tensors;
+
+    checkStatus (session->Run(input_tensors, 
+          {"o_dipole"}, 
+          {},
+          &output_tensors));
+
+    Tensor output_d = output_tensors[0];
+
+    auto od = output_d.flat <VALUETYPE> ();
+
+    vector<VALUETYPE> ddipole_ (nall, 0);
+
+    for (int ii = 0; ii < nloc; ++ii) {
+        ddipole_[ii] = od(ii);
+    }
+    ddipole = ddipole_;
+    nnpmap.backward (ddipole.begin(), ddipole_.begin(), 3);
+#else
+    std::vector<Tensor> output_tensors;
+
+    checkStatus (session->Run(input_tensors, 
+            {"o_dipole"}, 
+            {}, 
+            &output_tensors));
+
+    Tensor output_d = output_tensors[0];
+
+    auto od = output_d.flat <VALUETYPE> ();
+
+    vector<VALUETYPE> ddipole_ (nall, 0);
+
+    for (int ii = 0; ii < nloc; ++ii) {
+        ddipole_[ii] = od(ii);
+    }
+    ddipole = ddipole_;
+    nnpmap.backward (ddipole.begin(), ddipole_.begin(), 3);
+#endif
+}
+
 
 NNPInter::
 NNPInter ()
@@ -675,6 +731,44 @@ compute (ENERGYTYPE &			dener,
     #endif
     assert (nloc == ret);
     run_model (dener, dforce_, dvirial, datom_energy_, datom_virial_, session, input_tensors, nnpmap, nghost);
+}
+
+void
+NNPInter::
+compute (vector<VALUETYPE> &    ddipole,
+   const vector<VALUETYPE> &  dcoord_,
+   const vector<int> &    datype_,
+   const vector<VALUETYPE> &  dbox, 
+   const int      nghost, 
+   const LammpsNeighborList & lmp_list,
+   const int               &   ago,
+   const vector<VALUETYPE> &  fparam,
+   const vector<VALUETYPE> &  aparam)
+{
+  int nall = dcoord_.size() / 3;
+  int nloc = nall - nghost;
+    validate_fparam_aparam(nloc, fparam, aparam);
+    std::vector<std::pair<string, Tensor>> input_tensors;
+
+    if (ago == 0) {
+        nnpmap = NNPAtomMap<VALUETYPE> (datype_.begin(), datype_.begin() + nloc);
+        assert (nloc == nnpmap.get_type().size());
+
+        // InternalNeighborList nlist;
+        convert_nlist_lmp_internal (nlist, lmp_list);
+        shuffle_nlist (nlist, nnpmap);
+        #ifdef USE_CUDA_TOOLKIT
+            update_nbor(nlist, nloc);
+        #endif
+    }
+
+    #ifdef USE_CUDA_TOOLKIT
+        int ret = session_input_tensors (input_tensors, dcoord_, ntypes, datype_, dbox, ilist, jrange, jlist, array_int, array_longlong, array_double, fparam, aparam, nnpmap, nghost);
+    #else
+        int ret = session_input_tensors (input_tensors, dcoord_, ntypes, datype_, dbox, nlist, fparam, aparam, nnpmap, nghost);
+    #endif
+    assert (nloc == ret);
+    run_model (ddipole, session, input_tensors, nnpmap, nghost);
 }
 
 void
