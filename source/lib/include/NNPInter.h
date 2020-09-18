@@ -55,6 +55,15 @@ public:
 		const int 				&   ago,
 		const vector<VALUETYPE>	&	fparam = vector<VALUETYPE>(),
 		const vector<VALUETYPE>	&	aparam = vector<VALUETYPE>());
+  void compute (vector<VALUETYPE> &    ddipole,
+   const vector<VALUETYPE> &  dcoord_,
+   const vector<int> &    datype_,
+   const vector<VALUETYPE> &  dbox, 
+   const int      nghost, 
+   const LammpsNeighborList & lmp_list,
+   const int               &   ago,
+   const vector<VALUETYPE> &  fparam = vector<VALUETYPE>(),
+   const vector<VALUETYPE> &  aparam = vector<VALUETYPE>());
   VALUETYPE cutoff () const {assert(inited); return rcut;};
   int numb_types () const {assert(inited); return ntypes;};
   int dim_fparam () const {assert(inited); return dfparam;};
