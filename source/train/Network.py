@@ -16,18 +16,26 @@ def one_layer(inputs,
               trainable = True,
               useBN = False):
     with tf.variable_scope(name, reuse=reuse):
+        # variable_scope: construct a new variable or layer
+        # reuse: share the variable
         shape = inputs.get_shape().as_list()
+        # tf.shape(): return the shape of tensors
+        # x.get_shape(): x should be the tensor defined in TF, return the shape of x (in tuple)
+        # x.get_shape().as_list(): transfer the returned tuple into list
         w = tf.get_variable('matrix', 
                             [shape[1], outputs_size], 
                             precision,
                             tf.random_normal_initializer(stddev=stddev/np.sqrt(shape[1]+outputs_size), seed = seed), 
                             trainable = trainable)
+        # define the weight matrix
         b = tf.get_variable('bias', 
                             [outputs_size], 
                             precision,
                             tf.random_normal_initializer(stddev=stddev, mean = bavg, seed = seed), 
                             trainable = trainable)
+        # define the bias matrix
         hidden = tf.matmul(inputs, w) + b
+        # define the hidden layer
         if activation_fn != None and use_timestep :
             idt = tf.get_variable('idt',
                                   [outputs_size],
