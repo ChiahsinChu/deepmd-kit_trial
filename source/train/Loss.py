@@ -21,6 +21,7 @@ class EnerStdLoss () :
             .add('limit_pref_pf',       float,  default = 0)\
             .add('relative_f',          float)
         class_data = args.parse(jdata)
+        # read the setting for loss function from train.json
         self.start_pref_e = class_data['start_pref_e']
         self.limit_pref_e = class_data['limit_pref_e']
         self.start_pref_f = class_data['start_pref_f']
@@ -32,6 +33,7 @@ class EnerStdLoss () :
         self.start_pref_pf = class_data['start_pref_pf']
         self.limit_pref_pf = class_data['limit_pref_pf']
         self.relative_f = class_data['relative_f']
+        # check the included terms in the loss function
         self.has_e = (self.start_pref_e != 0 or self.limit_pref_e != 0)
         self.has_f = (self.start_pref_f != 0 or self.limit_pref_f != 0)
         self.has_v = (self.start_pref_v != 0 or self.limit_pref_v != 0)
@@ -49,11 +51,14 @@ class EnerStdLoss () :
                natoms,
                model_dict,
                label_dict,
-               suffix):        
+               suffix):   
+        # tensors for data 
+        # predicted data from DP model
         energy = model_dict['energy']
         force = model_dict['force']
         virial = model_dict['virial']
         atom_ener = model_dict['atom_ener']
+        # label data we give 
         energy_hat = label_dict['energy']
         force_hat = label_dict['force']
         virial_hat = label_dict['virial']
@@ -66,7 +71,7 @@ class EnerStdLoss () :
         find_atom_pref = label_dict['find_atom_pref']                
 
         l2_ener_loss = tf.reduce_mean( tf.square(energy - energy_hat), name='l2_'+suffix)
-
+        # tf.reduce_mean: calculate the average of all elements in tensors
         force_reshape = tf.reshape (force, [-1])
         force_hat_reshape = tf.reshape (force_hat, [-1])
         atom_pref_reshape = tf.reshape (atom_pref, [-1])
@@ -116,10 +121,13 @@ class EnerStdLoss () :
 
         self.l2_l = l2_loss
         self.l2_more = more_loss
+        # l2_loss: final value for loss function
+        # more_loss: dict for errors in each term
         return l2_loss, more_loss
 
 
     def print_header(self) :
+        # print the hearder in lcurve.out
         prop_fmt = '   %9s %9s'
         print_str = ''
         print_str += prop_fmt % ('l2_tst', 'l2_trn')
