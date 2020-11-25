@@ -216,6 +216,8 @@ class DeepmdData() :
         natoms_vec = np.zeros (ntypes).astype(int)
         for ii in range (ntypes) :
             natoms_vec[ii] = np.count_nonzero(sample_type == ii)
+        # natoms: total number of atoms
+        # natoms_vec: list for number of atoms for each type
         return natoms, natoms_vec
 
     def _get_subdata(self, data, idx = None) :
