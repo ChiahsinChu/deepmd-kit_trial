@@ -65,6 +65,7 @@ class EnerFitting ():
         return self.numb_fparam
 
     def compute_output_stats(self, all_stat):
+        # energy shift
         self.bias_atom_e = self._compute_output_stats(all_stat, rcond = self.rcond)
 
     @classmethod
