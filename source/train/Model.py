@@ -40,8 +40,10 @@ def make_all_stat(data, nbatches, merge_sys = True):
     """
     all_stat = defaultdict(list)
     for ii in range(data.get_nsystems()) :
+        # one sys_stat for each system
         sys_stat =  defaultdict(list)
         for jj in range(nbatches) :
+            # get_batch: get a batch of data from the data system
             stat_data = data.get_batch (sys_idx = ii)
             for dd in stat_data:
                 if dd == "natoms_vec":
